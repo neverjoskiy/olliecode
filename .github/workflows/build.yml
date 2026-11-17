@@ -1,0 +1,88 @@
+name: Build olliEcode
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Build channel"
+        required: false
+        default: "local"
+        type: choice
+        options: [local, dev, beta, prod]
+
+permissions:
+  contents: write
+
+jobs:
+  build-cli:
+    name: Build CLI (Windows x64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.4"
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build CLI
+        env:
+          OPENCODE_CHANNEL: ${{ inputs.channel }}
+        run: bun --cwd packages/cli build --single
+
+      - name: Upload CLI dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-dist
+          path: packages/cli/dist
+          if-no-files-found: error
+
+  build-desktop:
+    name: Build Desktop (Windows x64)
+    runs-on: windows-latest
+    needs: build-cli
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.4"
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Download CLI dist
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-dist
+          path: packages/cli/dist
+
+      - name: Build Desktop
+        env:
+          OPENCODE_CHANNEL: ${{ inputs.channel }}
+        run: bun --cwd packages/desktop build
+
+      - name: Package Desktop
+        env:
+          OPENCODE_CHANNEL: ${{ inputs.channel }}
+        run: bun --cwd packages/desktop pack
+
+      - name: Upload Desktop out
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-out
+          path: packages/desktop/out
+          if-no-files-found: warn
+
+      - name: Upload Desktop dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-dist
+          path: packages/desktop/dist
+          if-no-files-found: warn
